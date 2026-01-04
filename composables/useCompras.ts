@@ -78,24 +78,37 @@ export const useCompras = () => {
   )
 
   // Subir foto de factura
-  const subirFotoFactura = async (archivo: File): Promise<string> => {
-    const extension = archivo.name.split('.').pop()
-    const nombreArchivo = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`
-    const ruta = `${usuarioActual.value?.id}/${nombreArchivo}`
+  const subirFotoFactura = async (archivo: File): Promise<string | null> => {
+    try {
+      const extension = archivo.name.split('.').pop()
+      const nombreArchivo = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`
+      const ruta = `${usuarioActual.value?.id}/${nombreArchivo}`
 
-    const { error } = await supabase.storage
-      .from('facturas')
-      .upload(ruta, archivo)
+      const { error } = await supabase.storage
+        .from('facturas')
+        .upload(ruta, archivo)
 
-    if (error) throw error
+      if (error) {
+        console.error('Error subiendo factura:', error)
+        // Si el bucket no existe, retornar null en lugar de fallar
+        if (error.message?.includes('not found') || error.message?.includes('Bucket')) {
+          console.warn('El bucket "facturas" no existe en Supabase Storage')
+          return null
+        }
+        throw error
+      }
 
-    const { data } = supabase.storage.from('facturas').getPublicUrl(ruta)
-    return data.publicUrl
+      const { data } = supabase.storage.from('facturas').getPublicUrl(ruta)
+      return data.publicUrl
+    } catch (err) {
+      console.error('Error en subirFotoFactura:', err)
+      return null
+    }
   }
 
   // Registrar una nueva compra
   const registrarCompra = async (datos: FormCompra) => {
-    let fotoUrl: string | undefined
+    let fotoUrl: string | null = null
 
     // Subir foto si existe
     if (datos.foto_factura) {

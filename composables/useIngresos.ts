@@ -60,24 +60,36 @@ export const useIngresos = () => {
   )
 
   // Subir comprobante (foto o PDF)
-  const subirComprobante = async (archivo: File): Promise<string> => {
-    const extension = archivo.name.split('.').pop()
-    const nombreArchivo = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`
-    const ruta = `${usuarioActual.value?.id}/${nombreArchivo}`
+  const subirComprobante = async (archivo: File): Promise<string | null> => {
+    try {
+      const extension = archivo.name.split('.').pop()
+      const nombreArchivo = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`
+      const ruta = `${usuarioActual.value?.id}/${nombreArchivo}`
 
-    const { error } = await supabase.storage
-      .from('comprobantes')
-      .upload(ruta, archivo)
+      const { error } = await supabase.storage
+        .from('comprobantes')
+        .upload(ruta, archivo)
 
-    if (error) throw error
+      if (error) {
+        console.error('Error subiendo comprobante:', error)
+        if (error.message?.includes('not found') || error.message?.includes('Bucket')) {
+          console.warn('El bucket "comprobantes" no existe en Supabase Storage')
+          return null
+        }
+        throw error
+      }
 
-    const { data } = supabase.storage.from('comprobantes').getPublicUrl(ruta)
-    return data.publicUrl
+      const { data } = supabase.storage.from('comprobantes').getPublicUrl(ruta)
+      return data.publicUrl
+    } catch (err) {
+      console.error('Error en subirComprobante:', err)
+      return null
+    }
   }
 
   // Registrar un nuevo ingreso
   const registrarIngreso = async (datos: FormIngreso) => {
-    let comprobanteUrl: string | undefined
+    let comprobanteUrl: string | null = null
 
     // Subir comprobante si existe
     if (datos.comprobante) {
