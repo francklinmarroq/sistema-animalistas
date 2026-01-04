@@ -84,11 +84,20 @@ const crearAdmin = async () => {
     paso.value = 2
 
   } catch (err: any) {
-    console.error('Error al crear admin:', err)
+    console.error('Error completo al crear admin:', err)
 
-    let mensaje = err.message
-    if (err.message?.includes('User already registered')) {
-      mensaje = 'Ya existe un usuario con este email'
+    let mensaje = err.message || 'Error desconocido'
+
+    if (err.message?.includes('User already registered') || err.message?.includes('already exists')) {
+      mensaje = 'Ya existe un usuario con este email. Intenta iniciar sesión.'
+    } else if (err.message?.includes('password') || err.message?.includes('Password')) {
+      mensaje = 'La contraseña debe tener al menos 6 caracteres'
+    } else if (err.message?.includes('email') || err.message?.includes('Email')) {
+      mensaje = 'El formato del email no es válido'
+    } else if (err.status === 422 || err.message?.includes('422')) {
+      mensaje = 'Error de validación. Verifica que los datos sean correctos.'
+    } else if (err.message?.includes('Failed to fetch') || err.message?.includes('network')) {
+      mensaje = 'Error de conexión. Verifica que Supabase esté funcionando.'
     }
 
     mostrarError('Error', mensaje)

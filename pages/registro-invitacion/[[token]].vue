@@ -80,7 +80,19 @@ const handleRegistro = async () => {
     exito('¡Registro exitoso!', 'Ahora puedes iniciar sesión')
     await navigateTo('/login')
   } catch (err: any) {
-    mostrarError('Error al registrar', err.message)
+    console.error('Error completo:', err)
+
+    let mensaje = err.message || 'Error desconocido'
+
+    if (err.message?.includes('already registered') || err.message?.includes('already exists')) {
+      mensaje = 'Ya existe una cuenta con este email'
+    } else if (err.message?.includes('password')) {
+      mensaje = 'La contraseña debe tener al menos 6 caracteres'
+    } else if (err.status === 422) {
+      mensaje = 'Error de validación. Verifica que el email sea válido y la contraseña tenga al menos 6 caracteres.'
+    }
+
+    mostrarError('Error al registrar', mensaje)
   } finally {
     cargando.value = false
   }
