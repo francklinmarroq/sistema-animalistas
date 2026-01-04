@@ -6,6 +6,9 @@
 -- Nota: Usamos gen_random_uuid() que está disponible por defecto en PostgreSQL 13+
 -- No requiere extensión uuid-ossp
 
+-- Habilitar pgcrypto para gen_random_bytes (usado en tokens)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- =============================================
 -- TABLAS PRINCIPALES
 -- =============================================
