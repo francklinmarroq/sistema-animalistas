@@ -84,12 +84,13 @@ CREATE TABLE public.categorias_ingresos (
 );
 
 -- Compras
+-- Nota: cuenta_id es nullable porque lo asigna el tesorero al aprobar
 CREATE TABLE public.compras (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     descripcion TEXT NOT NULL,
     monto DECIMAL(12, 2) NOT NULL CHECK (monto > 0),
     categoria_id UUID REFERENCES public.categorias_compras(id) NOT NULL,
-    cuenta_id UUID REFERENCES public.cuentas(id) NOT NULL,
+    cuenta_id UUID REFERENCES public.cuentas(id), -- Nullable: lo asigna el tesorero
     fecha_compra DATE NOT NULL DEFAULT CURRENT_DATE,
     foto_factura_url TEXT,
     notas TEXT,
@@ -317,11 +318,13 @@ CREATE POLICY "Usuarios pueden crear compras"
     ON public.compras FOR INSERT
     WITH CHECK (auth.uid() IS NOT NULL AND registrado_por = auth.uid());
 
-CREATE POLICY "Tesoreros y admin pueden aprobar/rechazar compras"
+CREATE POLICY "Usuarios pueden actualizar compras"
     ON public.compras FOR UPDATE
     USING (
+        -- Tesoreros y admin pueden aprobar/rechazar
         get_user_role() IN ('administrador', 'tesorero') OR
-        (registrado_por = auth.uid() AND estado = 'pendiente')
+        -- El que registró puede editar si está pendiente o rechazada
+        (registrado_por = auth.uid() AND estado IN ('pendiente', 'rechazada'))
     );
 
 -- Políticas para INGRESOS
