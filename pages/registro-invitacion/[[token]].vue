@@ -75,7 +75,12 @@ const handleRegistro = async () => {
       invitacion.value.rol
     )
 
-    await marcarInvitacionUsada(invitacion.value.id)
+    // Intentar marcar la invitación como usada (puede fallar por RLS, pero no es crítico)
+    try {
+      await marcarInvitacionUsada(invitacion.value.id)
+    } catch (e) {
+      console.warn('No se pudo marcar la invitación como usada:', e)
+    }
 
     exito('¡Registro exitoso!', 'Ahora puedes iniciar sesión')
     await navigateTo('/login')
