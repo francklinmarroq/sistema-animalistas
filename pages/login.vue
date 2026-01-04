@@ -26,7 +26,17 @@ const handleLogin = async () => {
     await navigateTo('/')
   } catch (err: any) {
     console.error('Error de login:', err)
-    mostrarError('Error al iniciar sesión', err.message || 'Credenciales incorrectas')
+
+    // Mensajes de error más claros en español
+    let mensaje = 'Ocurrió un error inesperado'
+
+    if (err.message?.includes('Invalid login credentials')) {
+      mensaje = 'Email o contraseña incorrectos. ¿Ya creaste tu cuenta?'
+    } else if (err.message?.includes('Email not confirmed')) {
+      mensaje = 'Debes confirmar tu email antes de iniciar sesión.'
+    }
+
+    mostrarError('Error al iniciar sesión', mensaje)
   } finally {
     cargando.value = false
   }
@@ -92,12 +102,20 @@ const handleLogin = async () => {
       </button>
     </form>
 
-    <!-- Link de registro -->
-    <p class="mt-6 text-center text-sm text-gray-500">
-      ¿Tienes una invitación?
-      <NuxtLink to="/registro-invitacion" class="text-primary-600 hover:text-primary-700 font-medium">
-        Regístrate aquí
-      </NuxtLink>
-    </p>
+    <!-- Links -->
+    <div class="mt-6 space-y-2 text-center text-sm text-gray-500">
+      <p>
+        ¿Tienes una invitación?
+        <NuxtLink to="/registro-invitacion" class="text-primary-600 hover:text-primary-700 font-medium">
+          Regístrate aquí
+        </NuxtLink>
+      </p>
+      <p>
+        ¿Primera vez?
+        <NuxtLink to="/setup" class="text-primary-600 hover:text-primary-700 font-medium">
+          Configurar sistema
+        </NuxtLink>
+      </p>
+    </div>
   </div>
 </template>
