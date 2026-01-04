@@ -3,7 +3,6 @@ import type { FormCompra } from '~/types'
 
 const { registrarCompra } = useCompras()
 const { categoriasComprasActivas, cargarCategoriasCompras } = useCategorias()
-const { cuentasActivas, cargarCuentas } = useCuentas()
 const { exito, error: mostrarError } = useNotificaciones()
 
 // Estado del formulario
@@ -12,7 +11,7 @@ const formulario = ref<FormCompra>({
   descripcion: '',
   monto: null,
   categoria_id: '',
-  cuenta_id: '',
+  cuenta_id: '', // Se asignará por el tesorero al aprobar
   fecha_compra: new Date().toISOString().split('T')[0],
   foto_factura: null,
   notas: ''
@@ -20,10 +19,7 @@ const formulario = ref<FormCompra>({
 
 // Cargar datos necesarios
 onMounted(async () => {
-  await Promise.all([
-    cargarCategoriasCompras(),
-    cargarCuentas()
-  ])
+  await cargarCategoriasCompras()
 })
 
 // Manejar archivo de factura
@@ -45,10 +41,6 @@ const validar = (): boolean => {
     mostrarError('Error', 'Selecciona una categoría')
     return false
   }
-  if (!formulario.value.cuenta_id) {
-    mostrarError('Error', 'Selecciona una cuenta')
-    return false
-  }
   return true
 }
 
@@ -60,7 +52,7 @@ const guardar = async () => {
 
   try {
     await registrarCompra(formulario.value)
-    exito('Compra registrada', 'La compra ha sido registrada correctamente')
+    exito('Compra registrada', 'La compra ha sido enviada para revisión del tesorero')
     await navigateTo('/compras')
   } catch (err: any) {
     mostrarError('Error al guardar', err.message)
@@ -79,8 +71,17 @@ const guardar = async () => {
       </NuxtLink>
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Nueva Compra</h1>
-        <p class="text-gray-500 mt-1">Registra una nueva compra</p>
+        <p class="text-gray-500 mt-1">Registra una compra para revisión</p>
       </div>
+    </div>
+
+    <!-- Info -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <p class="text-sm text-blue-800">
+        <i class="pi pi-info-circle mr-2"></i>
+        La compra será enviada al tesorero/a para su revisión y aprobación.
+        El tesorero asignará la cuenta de la que saldrá el dinero.
+      </p>
     </div>
 
     <!-- Formulario -->
@@ -93,7 +94,7 @@ const guardar = async () => {
           v-model="formulario.descripcion"
           type="text"
           class="input"
-          placeholder="Ej: Alimento para gatos"
+          placeholder="Ej: Alimento para gatos - Tienda XYZ"
           required
         />
       </div>
@@ -136,26 +137,6 @@ const guardar = async () => {
         </select>
       </div>
 
-      <!-- Cuenta -->
-      <div>
-        <label for="cuenta" class="label">Cuenta de origen *</label>
-        <select
-          id="cuenta"
-          v-model="formulario.cuenta_id"
-          class="input"
-          required
-        >
-          <option value="" disabled>Selecciona una cuenta</option>
-          <option
-            v-for="cuenta in cuentasActivas"
-            :key="cuenta.id"
-            :value="cuenta.id"
-          >
-            {{ cuenta.nombre }} ({{ cuenta.tipo }})
-          </option>
-        </select>
-      </div>
-
       <!-- Fecha -->
       <div>
         <label for="fecha" class="label">Fecha de compra *</label>
@@ -170,7 +151,8 @@ const guardar = async () => {
 
       <!-- Foto de factura -->
       <div>
-        <label class="label">Foto de factura (opcional)</label>
+        <label class="label">Foto de factura / comprobante *</label>
+        <p class="text-xs text-gray-500 mb-2">Sube una foto clara de la factura o comprobante de compra</p>
         <UiSubidorArchivo
           accept="image/*,.pdf"
           :max-size="5"
@@ -198,8 +180,8 @@ const guardar = async () => {
           class="btn-primary flex-1"
         >
           <i v-if="cargando" class="pi pi-spinner pi-spin"></i>
-          <i v-else class="pi pi-check"></i>
-          {{ cargando ? 'Guardando...' : 'Registrar Compra' }}
+          <i v-else class="pi pi-send"></i>
+          {{ cargando ? 'Enviando...' : 'Enviar para Revisión' }}
         </button>
 
         <NuxtLink to="/compras" class="btn-outline flex-1 text-center">

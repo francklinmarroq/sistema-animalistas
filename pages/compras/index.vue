@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { Compra } from '~/types'
 
-const { compras, cargando, cargarCompras } = useCompras()
+const { compras, cargando, cargarCompras, misComprasRechazadas } = useCompras()
 const { formatearMoneda } = useConfiguracion()
+const { usuarioActual } = useAuth()
 
 // Filtros
 const filtroEstado = ref<string>('')
@@ -57,6 +58,34 @@ const formatearFecha = (fecha: string) => {
         <i class="pi pi-plus"></i>
         Nueva Compra
       </NuxtLink>
+    </div>
+
+    <!-- Alerta de compras rechazadas -->
+    <div v-if="misComprasRechazadas.length > 0" class="bg-red-50 border border-red-200 rounded-lg p-4">
+      <div class="flex items-start gap-3">
+        <div class="shrink-0">
+          <i class="pi pi-exclamation-triangle text-red-500 text-xl"></i>
+        </div>
+        <div class="flex-1">
+          <h3 class="font-medium text-red-800">
+            Tienes {{ misComprasRechazadas.length }} compra{{ misComprasRechazadas.length > 1 ? 's' : '' }} rechazada{{ misComprasRechazadas.length > 1 ? 's' : '' }}
+          </h3>
+          <p class="text-sm text-red-700 mt-1">
+            Revisa el motivo del rechazo y corrige los datos para solicitar una nueva revisión.
+          </p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <NuxtLink
+              v-for="compra in misComprasRechazadas"
+              :key="compra.id"
+              :to="`/compras/${compra.id}`"
+              class="inline-flex items-center gap-2 px-3 py-1.5 bg-red-100 hover:bg-red-200 rounded-lg text-sm text-red-800 transition-colors"
+            >
+              <i class="pi pi-file-edit"></i>
+              {{ compra.descripcion.length > 25 ? compra.descripcion.substring(0, 25) + '...' : compra.descripcion }}
+            </NuxtLink>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Filtros -->

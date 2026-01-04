@@ -16,6 +16,7 @@ export const useCompras = () => {
     cuenta_id?: string
     desde?: string
     hasta?: string
+    solo_mias?: boolean
   }) => {
     cargando.value = true
 
@@ -29,7 +30,7 @@ export const useCompras = () => {
           usuario_registro:usuarios!compras_registrado_por_fkey(*),
           usuario_revision:usuarios!compras_revisado_por_fkey(*)
         `)
-        .order('fecha_compra', { ascending: false })
+        .order('created_at', { ascending: false })
 
       // Aplicar filtros
       if (filtros?.estado) {
@@ -46,6 +47,9 @@ export const useCompras = () => {
       }
       if (filtros?.hasta) {
         query = query.lte('fecha_compra', filtros.hasta)
+      }
+      if (filtros?.solo_mias && usuarioActual.value) {
+        query = query.eq('registrado_por', usuarioActual.value.id)
       }
 
       const { data, error } = await query
@@ -72,6 +76,14 @@ export const useCompras = () => {
     compras.value.filter(c => c.estado === 'rechazada')
   )
 
+  // Compras rechazadas del usuario actual (para notificación)
+  const misComprasRechazadas = computed(() =>
+    compras.value.filter(c =>
+      c.estado === 'rechazada' &&
+      c.registrado_por === usuarioActual.value?.id
+    )
+  )
+
   // Total de compras aprobadas
   const totalComprasAprobadas = computed(() =>
     comprasAprobadas.value.reduce((sum, c) => sum + Number(c.monto), 0)
@@ -90,7 +102,6 @@ export const useCompras = () => {
 
       if (error) {
         console.error('Error subiendo factura:', error)
-        // Si el bucket no existe, retornar null en lugar de fallar
         if (error.message?.includes('not found') || error.message?.includes('Bucket')) {
           console.warn('El bucket "facturas" no existe en Supabase Storage')
           return null
@@ -106,7 +117,7 @@ export const useCompras = () => {
     }
   }
 
-  // Registrar una nueva compra
+  // Registrar una nueva compra (sin cuenta - la asigna el tesorero)
   const registrarCompra = async (datos: FormCompra) => {
     let fotoUrl: string | null = null
 
@@ -121,11 +132,12 @@ export const useCompras = () => {
         descripcion: datos.descripcion,
         monto: datos.monto,
         categoria_id: datos.categoria_id,
-        cuenta_id: datos.cuenta_id,
+        cuenta_id: datos.cuenta_id || null, // Puede ser null, lo asigna el tesorero
         fecha_compra: datos.fecha_compra,
         foto_factura_url: fotoUrl,
         notas: datos.notas,
-        registrado_por: usuarioActual.value?.id
+        registrado_por: usuarioActual.value?.id,
+        estado: 'pendiente'
       })
       .select(`
         *,
@@ -141,14 +153,20 @@ export const useCompras = () => {
     return data
   }
 
-  // Aprobar una compra
-  const aprobarCompra = async (id: string) => {
+  // Aprobar una compra (el tesorero asigna la cuenta)
+  const aprobarCompra = async (id: string, cuenta_id: string) => {
+    if (!cuenta_id) {
+      throw new Error('Debes seleccionar una cuenta para aprobar la compra')
+    }
+
     const { data, error } = await supabase
       .from('compras')
       .update({
         estado: 'aprobada',
+        cuenta_id: cuenta_id,
         revisado_por: usuarioActual.value?.id,
-        fecha_revision: new Date().toISOString()
+        fecha_revision: new Date().toISOString(),
+        motivo_rechazo: null // Limpiar motivo de rechazo si existía
       })
       .eq('id', id)
       .select(`
@@ -172,6 +190,10 @@ export const useCompras = () => {
 
   // Rechazar una compra
   const rechazarCompra = async (id: string, motivo: string) => {
+    if (!motivo) {
+      throw new Error('Debes indicar el motivo del rechazo')
+    }
+
     const { data, error } = await supabase
       .from('compras')
       .update({
@@ -179,6 +201,92 @@ export const useCompras = () => {
         revisado_por: usuarioActual.value?.id,
         fecha_revision: new Date().toISOString(),
         motivo_rechazo: motivo
+      })
+      .eq('id', id)
+      .select(`
+        *,
+        categoria:categorias_compras(*),
+        cuenta:cuentas(*),
+        usuario_registro:usuarios!compras_registrado_por_fkey(*),
+        usuario_revision:usuarios!compras_revisado_por_fkey(*)
+      `)
+      .single()
+
+    if (error) throw error
+
+    const index = compras.value.findIndex(c => c.id === id)
+    if (index !== -1) {
+      compras.value[index] = data as Compra
+    }
+
+    return data
+  }
+
+  // Editar una compra rechazada (solo el que la registró)
+  const editarCompraRechazada = async (id: string, datos: Partial<FormCompra>) => {
+    const compra = compras.value.find(c => c.id === id)
+
+    if (!compra) throw new Error('Compra no encontrada')
+    if (compra.estado !== 'rechazada') throw new Error('Solo puedes editar compras rechazadas')
+    if (compra.registrado_por !== usuarioActual.value?.id) {
+      throw new Error('Solo puedes editar tus propias compras')
+    }
+
+    let fotoUrl = compra.foto_factura_url
+
+    // Subir nueva foto si existe
+    if (datos.foto_factura) {
+      const nuevaUrl = await subirFotoFactura(datos.foto_factura)
+      if (nuevaUrl) fotoUrl = nuevaUrl
+    }
+
+    const { data, error } = await supabase
+      .from('compras')
+      .update({
+        descripcion: datos.descripcion || compra.descripcion,
+        monto: datos.monto || compra.monto,
+        categoria_id: datos.categoria_id || compra.categoria_id,
+        fecha_compra: datos.fecha_compra || compra.fecha_compra,
+        foto_factura_url: fotoUrl,
+        notas: datos.notas !== undefined ? datos.notas : compra.notas
+      })
+      .eq('id', id)
+      .select(`
+        *,
+        categoria:categorias_compras(*),
+        cuenta:cuentas(*),
+        usuario_registro:usuarios!compras_registrado_por_fkey(*),
+        usuario_revision:usuarios!compras_revisado_por_fkey(*)
+      `)
+      .single()
+
+    if (error) throw error
+
+    const index = compras.value.findIndex(c => c.id === id)
+    if (index !== -1) {
+      compras.value[index] = data as Compra
+    }
+
+    return data
+  }
+
+  // Reenviar compra rechazada para nueva revisión
+  const reenviarParaRevision = async (id: string) => {
+    const compra = compras.value.find(c => c.id === id)
+
+    if (!compra) throw new Error('Compra no encontrada')
+    if (compra.estado !== 'rechazada') throw new Error('Solo puedes reenviar compras rechazadas')
+    if (compra.registrado_por !== usuarioActual.value?.id) {
+      throw new Error('Solo puedes reenviar tus propias compras')
+    }
+
+    const { data, error } = await supabase
+      .from('compras')
+      .update({
+        estado: 'pendiente',
+        revisado_por: null,
+        fecha_revision: null,
+        motivo_rechazo: null
       })
       .eq('id', id)
       .select(`
@@ -210,12 +318,15 @@ export const useCompras = () => {
     comprasPendientes,
     comprasAprobadas,
     comprasRechazadas,
+    misComprasRechazadas,
     totalComprasAprobadas,
     cargando,
     cargarCompras,
     registrarCompra,
     aprobarCompra,
     rechazarCompra,
+    editarCompraRechazada,
+    reenviarParaRevision,
     obtenerCompra,
     subirFotoFactura
   }

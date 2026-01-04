@@ -3,6 +3,14 @@ import type { MenuItem } from '~/types'
 
 const { usuarioActual, cerrarSesion, esAdmin, esTesorero } = useAuth()
 const { configuracion } = useConfiguracion()
+const { misComprasRechazadas, cargarCompras } = useCompras()
+
+// Cargar compras para obtener notificaciones de rechazos
+onMounted(async () => {
+  if (usuarioActual.value) {
+    await cargarCompras()
+  }
+})
 
 // Estado del menú móvil
 const menuAbierto = ref(false)
@@ -148,11 +156,18 @@ const nombreRol = computed(() => {
           v-for="item in menuItems"
           :key="item.to"
           :to="item.to"
-          class="nav-item"
+          class="nav-item relative"
           active-class="nav-item-active"
         >
           <i :class="['pi', item.icon, 'text-lg']"></i>
           <span>{{ item.label }}</span>
+          <!-- Badge de notificación para compras rechazadas -->
+          <span
+            v-if="item.to === '/compras' && misComprasRechazadas.length > 0"
+            class="absolute right-2 top-1/2 -translate-y-1/2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"
+          >
+            {{ misComprasRechazadas.length > 9 ? '9+' : misComprasRechazadas.length }}
+          </span>
         </NuxtLink>
       </nav>
 
