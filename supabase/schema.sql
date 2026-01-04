@@ -4,10 +4,7 @@
 -- =============================================
 
 -- Nota: Usamos gen_random_uuid() que está disponible por defecto en PostgreSQL 13+
--- No requiere extensión uuid-ossp
-
--- Habilitar pgcrypto para gen_random_bytes (usado en tokens)
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- Para gen_random_bytes usamos extensions.gen_random_bytes (pgcrypto en Supabase Cloud)
 
 -- =============================================
 -- TABLAS PRINCIPALES
@@ -43,7 +40,7 @@ CREATE TABLE public.invitaciones (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     email TEXT NOT NULL,
     rol TEXT NOT NULL CHECK (rol IN ('administrador', 'tesorero', 'encargado_compras')),
-    token TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+    token TEXT UNIQUE NOT NULL DEFAULT encode(extensions.gen_random_bytes(32), 'hex'),
     invitado_por UUID REFERENCES public.usuarios(id) NOT NULL,
     usado BOOLEAN DEFAULT false,
     fecha_expiracion TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '7 days'),
