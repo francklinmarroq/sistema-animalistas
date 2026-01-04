@@ -3,11 +3,8 @@
 -- Sistema de Control Financiero - Organización Animalista
 -- =============================================
 
--- Nota: Usamos gen_random_uuid() que está disponible por defecto en PostgreSQL 13+
--- No requiere extensión uuid-ossp
-
--- Habilitar pgcrypto para gen_random_bytes (usado en tokens)
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- Habilitar extensiones necesarias
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- =============================================
 -- TABLAS PRINCIPALES
@@ -28,7 +25,7 @@ CREATE TABLE public.usuarios (
 
 -- Configuración del sistema (solo un registro)
 CREATE TABLE public.configuracion_sistema (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     moneda_codigo TEXT NOT NULL DEFAULT 'MXN',
     moneda_simbolo TEXT NOT NULL DEFAULT '$',
     moneda_nombre TEXT NOT NULL DEFAULT 'Peso Mexicano',
@@ -40,7 +37,7 @@ CREATE TABLE public.configuracion_sistema (
 
 -- Invitaciones para nuevos usuarios
 CREATE TABLE public.invitaciones (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     email TEXT NOT NULL,
     rol TEXT NOT NULL CHECK (rol IN ('administrador', 'tesorero', 'encargado_compras')),
     token TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
@@ -52,7 +49,7 @@ CREATE TABLE public.invitaciones (
 
 -- Cuentas bancarias / efectivo
 CREATE TABLE public.cuentas (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     nombre TEXT NOT NULL,
     tipo TEXT NOT NULL CHECK (tipo IN ('banco', 'efectivo', 'digital')),
     numero_cuenta TEXT,
@@ -66,7 +63,7 @@ CREATE TABLE public.cuentas (
 
 -- Categorías de compras
 CREATE TABLE public.categorias_compras (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     nombre TEXT NOT NULL,
     descripcion TEXT,
     icono TEXT DEFAULT 'pi-tag',
@@ -77,7 +74,7 @@ CREATE TABLE public.categorias_compras (
 
 -- Categorías de ingresos
 CREATE TABLE public.categorias_ingresos (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     nombre TEXT NOT NULL,
     descripcion TEXT,
     icono TEXT DEFAULT 'pi-wallet',
@@ -87,13 +84,12 @@ CREATE TABLE public.categorias_ingresos (
 );
 
 -- Compras
--- Nota: cuenta_id es nullable porque lo asigna el tesorero al aprobar
 CREATE TABLE public.compras (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     descripcion TEXT NOT NULL,
     monto DECIMAL(12, 2) NOT NULL CHECK (monto > 0),
     categoria_id UUID REFERENCES public.categorias_compras(id) NOT NULL,
-    cuenta_id UUID REFERENCES public.cuentas(id), -- Nullable: lo asigna el tesorero
+    cuenta_id UUID REFERENCES public.cuentas(id) NOT NULL,
     fecha_compra DATE NOT NULL DEFAULT CURRENT_DATE,
     foto_factura_url TEXT,
     notas TEXT,
@@ -108,7 +104,7 @@ CREATE TABLE public.compras (
 
 -- Ingresos
 CREATE TABLE public.ingresos (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     descripcion TEXT NOT NULL,
     monto DECIMAL(12, 2) NOT NULL CHECK (monto > 0),
     categoria_id UUID REFERENCES public.categorias_ingresos(id) NOT NULL,
@@ -321,13 +317,11 @@ CREATE POLICY "Usuarios pueden crear compras"
     ON public.compras FOR INSERT
     WITH CHECK (auth.uid() IS NOT NULL AND registrado_por = auth.uid());
 
-CREATE POLICY "Usuarios pueden actualizar compras"
+CREATE POLICY "Tesoreros y admin pueden aprobar/rechazar compras"
     ON public.compras FOR UPDATE
     USING (
-        -- Tesoreros y admin pueden aprobar/rechazar
         get_user_role() IN ('administrador', 'tesorero') OR
-        -- El que registró puede editar si está pendiente o rechazada
-        (registrado_por = auth.uid() AND estado IN ('pendiente', 'rechazada'))
+        (registrado_por = auth.uid() AND estado = 'pendiente')
     );
 
 -- Políticas para INGRESOS
