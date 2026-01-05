@@ -20,6 +20,18 @@ const nombre = ref('')
 const apellido = ref('')
 const mostrarPassword = ref(false)
 
+// Estado de error visible en el formulario
+const errorMensaje = ref('')
+const errorTitulo = ref('')
+
+// Limpiar error cuando el usuario interactúa
+watch([email, password, confirmarPassword, nombre, apellido], () => {
+  if (errorMensaje.value) {
+    errorMensaje.value = ''
+    errorTitulo.value = ''
+  }
+})
+
 // Verificar si ya existe un administrador
 onMounted(async () => {
   try {
@@ -41,19 +53,26 @@ onMounted(async () => {
 
 // Crear el administrador
 const crearAdmin = async () => {
+  // Limpiar error anterior
+  errorMensaje.value = ''
+  errorTitulo.value = ''
+
   // Validaciones
   if (!email.value || !password.value || !nombre.value || !apellido.value) {
-    mostrarError('Error', 'Todos los campos son requeridos')
+    errorTitulo.value = 'Campos incompletos'
+    errorMensaje.value = 'Todos los campos son requeridos'
     return
   }
 
   if (password.value !== confirmarPassword.value) {
-    mostrarError('Error', 'Las contraseñas no coinciden')
+    errorTitulo.value = 'Contraseñas no coinciden'
+    errorMensaje.value = 'Las contraseñas que ingresaste no coinciden. Verifica e intenta de nuevo.'
     return
   }
 
   if (password.value.length < 6) {
-    mostrarError('Error', 'La contraseña debe tener al menos 6 caracteres')
+    errorTitulo.value = 'Contraseña muy corta'
+    errorMensaje.value = 'La contraseña debe tener al menos 6 caracteres'
     return
   }
 
@@ -86,21 +105,39 @@ const crearAdmin = async () => {
   } catch (err: any) {
     console.error('Error completo al crear admin:', err)
 
-    let mensaje = err.message || 'Error desconocido'
+    const mensajeOriginal = err.message || err.error_description || ''
 
-    if (err.message?.includes('User already registered') || err.message?.includes('already exists')) {
-      mensaje = 'Ya existe un usuario con este email. Intenta iniciar sesión.'
-    } else if (err.message?.includes('password') || err.message?.includes('Password')) {
+    let titulo = 'Error al crear administrador'
+    let mensaje = 'Ocurrió un error inesperado. Intenta de nuevo.'
+
+    if (mensajeOriginal.toLowerCase().includes('user already registered') ||
+        mensajeOriginal.toLowerCase().includes('already exists') ||
+        mensajeOriginal.toLowerCase().includes('already')) {
+      titulo = 'Cuenta existente'
+      mensaje = 'Ya existe un usuario con este correo electrónico. Intenta iniciar sesión.'
+    } else if (mensajeOriginal.toLowerCase().includes('password')) {
+      titulo = 'Contraseña inválida'
       mensaje = 'La contraseña debe tener al menos 6 caracteres'
-    } else if (err.message?.includes('email') || err.message?.includes('Email')) {
-      mensaje = 'El formato del email no es válido'
-    } else if (err.status === 422 || err.message?.includes('422')) {
-      mensaje = 'Error de validación. Verifica que los datos sean correctos.'
-    } else if (err.message?.includes('Failed to fetch') || err.message?.includes('network')) {
-      mensaje = 'Error de conexión. Verifica que Supabase esté funcionando.'
+    } else if (mensajeOriginal.toLowerCase().includes('email')) {
+      titulo = 'Email inválido'
+      mensaje = 'El formato del correo electrónico no es válido'
+    } else if (err.status === 422 || mensajeOriginal.includes('422')) {
+      titulo = 'Error de validación'
+      mensaje = 'Verifica que los datos sean correctos.'
+    } else if (mensajeOriginal.toLowerCase().includes('failed to fetch') ||
+               mensajeOriginal.toLowerCase().includes('network')) {
+      titulo = 'Error de conexión'
+      mensaje = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.'
+    } else if (mensajeOriginal) {
+      mensaje = mensajeOriginal
     }
 
-    mostrarError('Error', mensaje)
+    // Mostrar error en el formulario
+    errorTitulo.value = titulo
+    errorMensaje.value = mensaje
+
+    // También mostrar como toast
+    mostrarError(titulo, mensaje)
   } finally {
     cargando.value = false
   }
@@ -141,6 +178,22 @@ const crearAdmin = async () => {
       <p class="text-gray-500 text-sm text-center mb-6">
         Crea la cuenta de administrador para comenzar
       </p>
+
+      <!-- Mensaje de error visible -->
+      <Transition name="fade">
+        <div
+          v-if="errorMensaje"
+          class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg"
+        >
+          <div class="flex items-start gap-3">
+            <i class="pi pi-exclamation-circle text-red-500 text-lg mt-0.5"></i>
+            <div>
+              <p class="font-medium text-red-800">{{ errorTitulo }}</p>
+              <p class="text-sm text-red-600 mt-1">{{ errorMensaje }}</p>
+            </div>
+          </div>
+        </div>
+      </Transition>
 
       <form @submit.prevent="crearAdmin" class="space-y-4">
         <div class="grid grid-cols-2 gap-3">
@@ -256,3 +309,15 @@ const crearAdmin = async () => {
     </template>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

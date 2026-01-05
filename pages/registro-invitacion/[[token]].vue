@@ -24,10 +24,27 @@ const password = ref('')
 const confirmarPassword = ref('')
 const mostrarPassword = ref(false)
 
+// Estado de error visible en el formulario
+const errorMensaje = ref('')
+const errorTitulo = ref('')
+
+// Limpiar error cuando el usuario interactúa
+watch([token, nombre, apellido, password, confirmarPassword], () => {
+  if (errorMensaje.value) {
+    errorMensaje.value = ''
+    errorTitulo.value = ''
+  }
+})
+
 // Verificar token
 const verificarToken = async () => {
+  // Limpiar error anterior
+  errorMensaje.value = ''
+  errorTitulo.value = ''
+
   if (!token.value) {
-    mostrarError('Error', 'Por favor ingresa el código de invitación')
+    errorTitulo.value = 'Código requerido'
+    errorMensaje.value = 'Por favor ingresa el código de invitación'
     return
   }
 
@@ -37,6 +54,8 @@ const verificarToken = async () => {
     const inv = await verificarInvitacion(token.value)
 
     if (!inv) {
+      errorTitulo.value = 'Invitación inválida'
+      errorMensaje.value = 'El código no existe, ya fue usado o ha expirado. Solicita una nueva invitación.'
       mostrarError('Invitación inválida', 'El código no existe o ha expirado')
       return
     }
@@ -44,6 +63,8 @@ const verificarToken = async () => {
     invitacion.value = inv
     paso.value = 'registro'
   } catch (err: any) {
+    errorTitulo.value = 'Error de verificación'
+    errorMensaje.value = err.message || 'No se pudo verificar el código de invitación'
     mostrarError('Error', err.message)
   } finally {
     verificando.value = false
@@ -52,15 +73,21 @@ const verificarToken = async () => {
 
 // Registrar usuario
 const handleRegistro = async () => {
+  // Limpiar error anterior
+  errorMensaje.value = ''
+  errorTitulo.value = ''
+
   if (!invitacion.value) return
 
   if (password.value !== confirmarPassword.value) {
-    mostrarError('Error', 'Las contraseñas no coinciden')
+    errorTitulo.value = 'Contraseñas no coinciden'
+    errorMensaje.value = 'Las contraseñas que ingresaste no coinciden. Verifica e intenta de nuevo.'
     return
   }
 
   if (password.value.length < 6) {
-    mostrarError('Error', 'La contraseña debe tener al menos 6 caracteres')
+    errorTitulo.value = 'Contraseña muy corta'
+    errorMensaje.value = 'La contraseña debe tener al menos 6 caracteres'
     return
   }
 
@@ -87,17 +114,39 @@ const handleRegistro = async () => {
   } catch (err: any) {
     console.error('Error completo:', err)
 
-    let mensaje = err.message || 'Error desconocido'
+    const mensajeOriginal = err.message || err.error_description || ''
 
-    if (err.message?.includes('already registered') || err.message?.includes('already exists')) {
-      mensaje = 'Ya existe una cuenta con este email'
-    } else if (err.message?.includes('password')) {
+    let titulo = 'Error al registrar'
+    let mensaje = 'Ocurrió un error inesperado. Intenta de nuevo.'
+
+    if (mensajeOriginal.toLowerCase().includes('already registered') ||
+        mensajeOriginal.toLowerCase().includes('already exists') ||
+        mensajeOriginal.toLowerCase().includes('user already')) {
+      titulo = 'Cuenta existente'
+      mensaje = 'Ya existe una cuenta con este correo electrónico. Intenta iniciar sesión.'
+    } else if (mensajeOriginal.toLowerCase().includes('password')) {
+      titulo = 'Contraseña inválida'
       mensaje = 'La contraseña debe tener al menos 6 caracteres'
+    } else if (mensajeOriginal.toLowerCase().includes('email')) {
+      titulo = 'Email inválido'
+      mensaje = 'El formato del correo electrónico no es válido'
     } else if (err.status === 422) {
-      mensaje = 'Error de validación. Verifica que el email sea válido y la contraseña tenga al menos 6 caracteres.'
+      titulo = 'Error de validación'
+      mensaje = 'Verifica que el email sea válido y la contraseña tenga al menos 6 caracteres.'
+    } else if (mensajeOriginal.toLowerCase().includes('network') ||
+               mensajeOriginal.toLowerCase().includes('fetch')) {
+      titulo = 'Error de conexión'
+      mensaje = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.'
+    } else if (mensajeOriginal) {
+      mensaje = mensajeOriginal
     }
 
-    mostrarError('Error al registrar', mensaje)
+    // Mostrar error en el formulario
+    errorTitulo.value = titulo
+    errorMensaje.value = mensaje
+
+    // También mostrar como toast
+    mostrarError(titulo, mensaje)
   } finally {
     cargando.value = false
   }
@@ -132,6 +181,22 @@ const nombreRol = computed(() => {
         Ingresa el código de invitación que recibiste
       </p>
 
+      <!-- Mensaje de error visible -->
+      <Transition name="fade">
+        <div
+          v-if="errorMensaje"
+          class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg"
+        >
+          <div class="flex items-start gap-3">
+            <i class="pi pi-exclamation-circle text-red-500 text-lg mt-0.5"></i>
+            <div>
+              <p class="font-medium text-red-800">{{ errorTitulo }}</p>
+              <p class="text-sm text-red-600 mt-1">{{ errorMensaje }}</p>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
       <form @submit.prevent="verificarToken" class="space-y-4">
         <div>
           <label for="token" class="label">Código de invitación</label>
@@ -161,6 +226,22 @@ const nombreRol = computed(() => {
       <h2 class="text-xl font-semibold text-gray-900 mb-2 text-center">
         Completa tu Registro
       </h2>
+
+      <!-- Mensaje de error visible -->
+      <Transition name="fade">
+        <div
+          v-if="errorMensaje"
+          class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg"
+        >
+          <div class="flex items-start gap-3">
+            <i class="pi pi-exclamation-circle text-red-500 text-lg mt-0.5"></i>
+            <div>
+              <p class="font-medium text-red-800">{{ errorTitulo }}</p>
+              <p class="text-sm text-red-600 mt-1">{{ errorMensaje }}</p>
+            </div>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Info de la invitación -->
       <div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-6">
@@ -251,3 +332,15 @@ const nombreRol = computed(() => {
     </p>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
