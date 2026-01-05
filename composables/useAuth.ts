@@ -97,13 +97,13 @@ export const useAuth = () => {
     if (authError) throw authError
     if (!authData.user) throw new Error('No se pudo crear el usuario')
 
-    // Crear perfil en la tabla usuarios
-    const { error: perfilError } = await supabase.from('usuarios').insert({
-      id: authData.user.id,
-      email,
-      nombre,
-      apellido,
-      rol
+    // Crear perfil usando función RPC (bypasea RLS de forma segura)
+    const { error: perfilError } = await supabase.rpc('crear_perfil_usuario', {
+      user_id: authData.user.id,
+      user_email: email,
+      user_nombre: nombre,
+      user_apellido: apellido,
+      user_rol: rol
     })
 
     if (perfilError) throw perfilError
