@@ -69,13 +69,13 @@ const crearAdmin = async () => {
     if (authError) throw authError
     if (!authData.user) throw new Error('No se pudo crear el usuario')
 
-    // 2. Crear perfil en la tabla usuarios
-    const { error: perfilError } = await supabase.from('usuarios').insert({
-      id: authData.user.id,
-      email: email.value,
-      nombre: nombre.value,
-      apellido: apellido.value,
-      rol: 'administrador'
+    // 2. Crear perfil usando función RPC (bypasea RLS de forma segura)
+    const { data: perfilData, error: perfilError } = await supabase.rpc('crear_perfil_usuario', {
+      user_id: authData.user.id,
+      user_email: email.value,
+      user_nombre: nombre.value,
+      user_apellido: apellido.value,
+      user_rol: 'administrador'
     })
 
     if (perfilError) throw perfilError
