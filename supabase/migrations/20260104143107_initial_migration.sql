@@ -341,7 +341,7 @@ CREATE POLICY "Solo admin puede eliminar ingresos"
 
 -- Insertar configuración inicial
 INSERT INTO public.configuracion_sistema (moneda_codigo, moneda_simbolo, moneda_nombre, nombre_organizacion)
-VALUES ('MXN', '$', 'Peso Mexicano', 'Rescate Animalista')
+VALUES ('HNL', 'L', 'Lempira Hondureño', 'Animalistas de Corazón')
 ON CONFLICT DO NOTHING;
 
 -- Categorías iniciales de compras
