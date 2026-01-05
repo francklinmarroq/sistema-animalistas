@@ -24,5 +24,8 @@
         Ayudando a los animalitos de la calle
       </p>
     </div>
+
+    <!-- Componente de notificaciones para mostrar errores -->
+    <NotificacionesToast />
   </div>
 </template>
